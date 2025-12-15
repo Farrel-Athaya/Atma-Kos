@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inbox Pesan - Admin Kos Atma</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="admin-body">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-header">
+        <a href="../index.html" class="logo">Kos Atma</a>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"> Dashboard </a>
+        <a href="kos.html" class="nav-item"> Kelola Cabang </a>
+        <a href="kamar.html" class="nav-item"> Kelola Kamar </a>
+        <a href="penyewa.html" class="nav-item"> Data Penyewa </a>
+        <a href="users.html" class="nav-item"> Kelola Users </a>
+        <a href="inbox.html" class="nav-item active">
+          Inbox Pesan
+          <span id="inboxBadge" class="inbox-badge" style="display: none"
+            >0</span
+          >
+        </a>
+        <hr />
+        <a href="../index.html" class="nav-item"> Lihat Website </a>
+        <a href="#" onclick="adminLogout()" class="nav-item"> Keluar </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1>📬 Inbox Pesan</h1>
+      </header>
+
+      <div class="admin-content">
+        <div id="alertContainer"></div>
+
+        <div class="inbox-container">
+          <!-- Conversations List -->
+          <div class="conversations-list">
+            <div class="conversations-header">
+              <h3>Percakapan</h3>
+            </div>
+            <div class="conversations-body" id="conversationsList">
+              <div class="no-conversations">Memuat percakapan...</div>
+            </div>
+          </div>
+
+          <!-- Chat Panel -->
+          <div class="chat-panel">
+            <div
+              class="chat-panel-header"
+              id="chatHeader"
+              style="display: none"
+            >
+              <div class="user-info">
+                <div class="user-avatar" id="chatUserAvatar">👤</div>
+                <div>
+                  <div class="user-name" id="chatUserName">-</div>
+                  <div class="user-email" id="chatUserEmail">-</div>
+                </div>
+              </div>
+            </div>
+            <div class="chat-panel-body" id="chatBody">
+              <div class="chat-panel-empty">
+                Pilih percakapan untuk melihat pesan
+              </div>
+            </div>
+            <div
+              class="chat-panel-footer"
+              id="chatFooter"
+              style="display: none"
+            >
+              <form class="reply-form" id="replyForm">
+                <input
+                  type="text"
+                  id="replyInput"
+                  placeholder="Ketik balasan..."
+                  maxlength="500"
+                  autocomplete="off"
+                />
+                <button type="submit" class="btn btn-primary">Kirim</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+      let currentUserId = null;
+      let refreshInterval = null;
+      let conversationsData = {}; // Store conversation data
+
+      document.addEventListener("DOMContentLoaded", async function () {
+        // Check admin auth
+        const user = await checkAuth();
+        if (!user || user.role !== "admin") {
+          window.location.href = "../auth/login.html";
+          return;
+        }
+
+        // Load conversations
+        await loadConversations();
+
+        // Auto refresh every 5 seconds
+        refreshInterval = setInterval(async () => {
+          await loadConversations();
+          // Also refresh messages if a conversation is selected
+          if (currentUserId) {
+            await loadMessages(currentUserId);
+          }
+        }, 5000);
+
+        // Handle reply form
+        document
+          .getElementById("replyForm")
+          .addEventListener("submit", async function (e) {
+            e.preventDefault();
+            await sendReply();
+          });
+      });
+
+      async function loadConversations() {
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/chat/conversations.php",
+            {
+              credentials: "include",
+            }
+          );
+          const result = await response.json();
+
+          const container = document.getElementById("conversationsList");
+
+          if (!result.success || !result.data || result.data.length === 0) {
+            container.innerHTML =
+              '<div class="no-conversations">Belum ada pesan masuk</div>';
+            return;
+          }
+
+          // Store conversations data
+          result.data.forEach((conv) => {
+            conversationsData[conv.user_id] = conv;
+          });
+
+          container.innerHTML = result.data
+            .map(
+              (conv) => `
+                    <div class="conversation-item ${
+                      currentUserId == conv.user_id ? "active" : ""
+                    }" 
+                         data-user-id="${
+                           conv.user_id
+                         }" onclick="selectConversation(${conv.user_id})">
+                        <div class="conversation-avatar">
+                            ${
+                              conv.foto
+                                ? `<img src="${UPLOAD_BASE_URL}/profiles/${conv.foto}" alt="" onerror="this.parentElement.innerHTML='👤'">`
+                                : "👤"
+                            }
+                        </div>
+                        <div class="conversation-info">
+                            <div class="conversation-name">${escapeHtml(
+                              conv.nama
+                            )}</div>
+                            <div class="conversation-preview">${escapeHtml(
+                              conv.last_message || "Tidak ada pesan"
+                            )}</div>
+                        </div>
+                        <div class="conversation-meta">
+                            <div class="conversation-time">${formatTime(
+                              conv.last_time
+                            )}</div>
+                            ${
+                              conv.unread_count > 0
+                                ? `<span class="conversation-unread">${conv.unread_count}</span>`
+                                : ""
+                            }
+                        </div>
+                    </div>
+                `
+            )
+            .join("");
+
+          // Update inbox badge
+          const totalUnread = result.data.reduce(
+            (sum, c) => sum + (c.unread_count || 0),
+            0
+          );
+          updateInboxBadge(totalUnread);
+        } catch (error) {
+          console.error("Load conversations error:", error);
+        }
+      }
+
+      async function selectConversation(userId) {
+        const conv = conversationsData[userId];
+        if (!conv) return;
+
+        currentUserId = userId;
+
+        // Update active state
+        document
+          .querySelectorAll(".conversation-item")
+          .forEach((el) => el.classList.remove("active"));
+        document
+          .querySelector(`.conversation-item[data-user-id="${userId}"]`)
+          ?.classList.add("active");
+
+        // Show chat header
+        document.getElementById("chatHeader").style.display = "flex";
+        document.getElementById("chatFooter").style.display = "block";
+        document.getElementById("chatUserName").textContent = conv.nama;
+        document.getElementById("chatUserEmail").textContent = conv.email;
+
+        const avatarEl = document.getElementById("chatUserAvatar");
+        if (conv.foto) {
+          avatarEl.innerHTML = `<img src="${UPLOAD_BASE_URL}/profiles/${conv.foto}" alt="" onerror="this.parentElement.innerHTML='👤'">`;
+        } else {
+          avatarEl.innerHTML = "👤";
+        }
+
+        // Load messages
+        await loadMessages(userId);
+
+        // Mark as read
+        await markAsRead(userId);
+      }
+
+      async function loadMessages(userId) {
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/chat/admin_messages.php?user_id=" + userId,
+            {
+              credentials: "include",
+            }
+          );
+          const result = await response.json();
+
+          const container = document.getElementById("chatBody");
+
+          // Data messages ada di result.data.messages
+          const messages = result.data?.messages || [];
+
+          if (!result.success || messages.length === 0) {
+            container.innerHTML =
+              '<div class="chat-panel-empty">Belum ada pesan</div>';
+            return;
+          }
+
+          container.innerHTML = `
+                    <div class="admin-message-container">
+                        ${messages
+                          .map(
+                            (msg) => `
+                            <div class="admin-message from-${msg.sender_type}">
+                                <div class="message-text">${escapeHtml(
+                                  msg.message
+                                )}</div>
+                                <div class="message-time">${formatDateTime(
+                                  msg.created_at
+                                )}</div>
+                            </div>
+                        `
+                          )
+                          .join("")}
+                    </div>
+                `;
+
+          // Scroll to bottom
+          container.scrollTop = container.scrollHeight;
+        } catch (error) {
+          console.error("Load messages error:", error);
+        }
+      }
+
+      async function sendReply() {
+        if (!currentUserId) return;
+
+        const input = document.getElementById("replyInput");
+        const message = input.value.trim();
+
+        if (!message) return;
+
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/chat/admin_reply.php",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                user_id: currentUserId,
+                message: message,
+              }),
+            }
+          );
+
+          const result = await response.json();
+
+          if (result.success) {
+            input.value = "";
+            await loadMessages(currentUserId);
+            await markAsRead(currentUserId); // Mark user messages as read after reply
+            await loadConversations();
+          } else {
+            alert(result.message || "Gagal mengirim pesan");
+          }
+        } catch (error) {
+          console.error("Send reply error:", error);
+          alert("Terjadi kesalahan");
+        }
+      }
+
+      async function markAsRead(userId) {
+        try {
+          await fetch(API_BASE_URL + "/api/chat/read.php", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ user_id: userId }),
+          });
+
+          // Reload conversations to update unread counts
+          await loadConversations();
+        } catch (error) {
+          console.error("Mark as read error:", error);
+        }
+      }
+
+      function updateInboxBadge(count) {
+        const badge = document.getElementById("inboxBadge");
+        if (badge) {
+          if (count > 0) {
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.style.display = "inline";
+          } else {
+            badge.style.display = "none";
+          }
+        }
+      }
+
+      function formatTime(dateStr) {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = now - date;
+
+        if (diff < 86400000) {
+          // Today
+          return date.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } else if (diff < 604800000) {
+          // This week
+          return date.toLocaleDateString("id-ID", { weekday: "short" });
+        } else {
+          return date.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+          });
+        }
+      }
+
+      function formatDateTime(dateStr) {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        return date.toLocaleString("id-ID", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function escapeHtml(str) {
+        if (!str) return "";
+        return str.replace(/[&<>"']/g, function (m) {
+          return {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          }[m];
+        });
+      }
+
+      function adminLogout() {
+        if (confirm("Yakin ingin keluar?")) {
+          fetch(API_BASE_URL + "/api/auth/logout.php", {
+            method: "POST",
+            credentials: "include",
+          }).finally(() => {
+            window.location.href = "../auth/login.html";
+          });
+        }
+      }
+    </script>
+  </body>
+</html>
