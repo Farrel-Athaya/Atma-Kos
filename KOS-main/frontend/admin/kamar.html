@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kelola Kamar - Admin Kos Atma</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="admin-body">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-header">
+        <a href="../index.html" class="logo">Kos Atma</a>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"> Dashboard </a>
+        <a href="kos.html" class="nav-item"> Kelola Cabang </a>
+        <a href="kamar.html" class="nav-item active"> Kelola Kamar </a>
+        <a href="penyewa.html" class="nav-item"> Data Penyewa </a>
+        <a href="users.html" class="nav-item"> Kelola Users </a>
+        <a href="inbox.html" class="nav-item">
+          Inbox Pesan
+          <span id="inboxBadge" class="inbox-badge" style="display: none"
+            >0</span
+          >
+        </a>
+        <hr />
+        <a href="../index.html" class="nav-item"> Lihat Website </a>
+        <a href="#" onclick="adminLogout()" class="nav-item"> Keluar </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1>Kelola Kamar</h1>
+        <button class="btn btn-primary" onclick="openModal()">
+          ➕ Tambah Kamar
+        </button>
+      </header>
+
+      <div class="admin-content">
+        <div id="alertContainer"></div>
+
+        <!-- Filter -->
+        <div class="card">
+          <div class="card-body">
+            <form id="filterForm" class="search-form">
+              <div class="search-row">
+                <select id="filterKos">
+                  <option value="">Semua Kos</option>
+                </select>
+                <select id="filterStatus">
+                  <option value="">Semua Status</option>
+                  <option value="tersedia">Tersedia</option>
+                  <option value="terisi">Terisi</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Filter</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Kamar Table -->
+        <div class="card">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Foto</th>
+                    <th>Kos</th>
+                    <th>No. Kamar</th>
+                    <th>Ukuran</th>
+                    <th>Harga</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="kamarTableBody">
+                  <tr>
+                    <td colspan="8" class="text-center">Memuat data...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal Form -->
+    <div id="kamarModal" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2 id="modalTitle">Tambah Kamar Baru</h2>
+        <form id="kamarForm" enctype="multipart/form-data">
+          <input type="hidden" id="kamarId" />
+          <div class="form-group">
+            <label for="kosId">Kos *</label>
+            <select id="kosId" name="kos_id" required>
+              <option value="">Pilih Kos</option>
+            </select>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="nomor">Nomor Kamar *</label>
+              <input
+                type="text"
+                id="nomor"
+                name="nomor"
+                required
+                placeholder="Contoh: A1, 101"
+              />
+            </div>
+            <div class="form-group">
+              <label for="ukuran">Ukuran</label>
+              <input
+                type="text"
+                id="ukuran"
+                name="ukuran"
+                placeholder="Contoh: 3x4 m"
+              />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="harga">Harga/Bulan *</label>
+              <input type="number" id="harga" name="harga" required min="0" />
+            </div>
+            <div class="form-group">
+              <label for="status">Status *</label>
+              <select id="status" name="status" required>
+                <option value="tersedia">Tersedia</option>
+                <option value="terisi">Terisi</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="fasilitas">Fasilitas</label>
+            <input
+              type="text"
+              id="fasilitas"
+              name="fasilitas"
+              placeholder="AC, Kamar Mandi Dalam, Kasur, dll"
+            />
+          </div>
+          <div class="form-group">
+            <label for="foto">Foto Kamar</label>
+            <input type="file" id="foto" name="foto" accept="image/*" />
+            <div id="fotoPreview" class="image-preview"></div>
+          </div>
+          <div class="form-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeModal()"
+            >
+              Batal
+            </button>
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              Simpan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="modal">
+      <div class="modal-content modal-sm">
+        <h3>Konfirmasi Hapus</h3>
+        <p>Apakah Anda yakin ingin menghapus kamar ini?</p>
+        <p><strong id="deleteKamarName"></strong></p>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="closeDeleteModal()">
+            Batal
+          </button>
+          <button class="btn btn-danger" id="confirmDeleteBtn">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+      let editingId = null;
+      let deleteId = null;
+      let kosList = [];
+
+      document.addEventListener("DOMContentLoaded", async function () {
+        const user = await requireAdmin();
+        if (!user) return;
+
+        await loadKosList();
+        loadKamarList();
+
+        document
+          .getElementById("filterForm")
+          .addEventListener("submit", function (e) {
+            e.preventDefault();
+            loadKamarList();
+          });
+
+        document
+          .getElementById("kamarForm")
+          .addEventListener("submit", handleSubmit);
+
+        document
+          .getElementById("foto")
+          .addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = function (e) {
+                document.getElementById(
+                  "fotoPreview"
+                ).innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+              };
+              reader.readAsDataURL(file);
+            }
+          });
+      });
+
+      async function loadKosList() {
+        try {
+          const response = await API.kos.getList({});
+          if (response.success) {
+            kosList = response.data;
+            const options = kosList
+              .map((kos) => `<option value="${kos.id}">${kos.nama}</option>`)
+              .join("");
+
+            document.getElementById("filterKos").innerHTML =
+              '<option value="">Semua Kos</option>' + options;
+            document.getElementById("kosId").innerHTML =
+              '<option value="">Pilih Kos</option>' + options;
+          }
+        } catch (error) {
+          console.error("Error loading kos list:", error);
+        }
+      }
+
+      async function loadKamarList() {
+        const tbody = document.getElementById("kamarTableBody");
+        tbody.innerHTML =
+          '<tr><td colspan="8" class="text-center">Memuat data...</td></tr>';
+
+        const kosId = document.getElementById("filterKos").value;
+        const status = document.getElementById("filterStatus").value;
+
+        try {
+          const response = await API.kamar.getList({
+            kos_id: kosId,
+            status: status,
+          });
+
+          if (response.success && response.data.length > 0) {
+            tbody.innerHTML = response.data
+              .map(
+                (kamar) => `
+                        <tr>
+                            <td>${kamar.id}</td>
+                            <td>
+                                <img src="${
+                                  kamar.foto
+                                    ? UPLOAD_BASE_URL + "/kamar/" + kamar.foto
+                                    : "../assets/images/no-image.svg"
+                                }" 
+                                     alt="Kamar ${
+                                       kamar.nomor
+                                     }" class="table-img"
+                                     onerror="this.src='../assets/images/no-image.svg'">
+                            </td>
+                            <td>${kamar.kos_nama || "-"}</td>
+                            <td><strong>${kamar.nomor}</strong></td>
+                            <td>${kamar.ukuran || "-"}</td>
+                            <td>Rp ${formatNumber(kamar.harga)}</td>
+                            <td><span class="badge badge-${kamar.status}">${
+                  kamar.status
+                }</span></td>
+                            <td class="actions">
+                                <button class="btn btn-sm btn-info" onclick="editKamar(${
+                                  kamar.id
+                                })">✏️</button>
+                                <button class="btn btn-sm btn-danger" onclick="confirmDelete(${
+                                  kamar.id
+                                }, '${kamar.nomor}')">🗑️</button>
+                            </td>
+                        </tr>
+                    `
+              )
+              .join("");
+          } else {
+            tbody.innerHTML =
+              '<tr><td colspan="8" class="text-center">Tidak ada data kamar</td></tr>';
+          }
+        } catch (error) {
+          tbody.innerHTML =
+            '<tr><td colspan="8" class="text-center text-danger">Gagal memuat data</td></tr>';
+        }
+      }
+
+      function openModal(isEdit = false) {
+        document.getElementById("kamarModal").style.display = "flex";
+        document.getElementById("modalTitle").textContent = isEdit
+          ? "Edit Kamar"
+          : "Tambah Kamar Baru";
+        if (!isEdit) {
+          document.getElementById("kamarForm").reset();
+          document.getElementById("kamarId").value = "";
+          document.getElementById("fotoPreview").innerHTML = "";
+          editingId = null;
+        }
+      }
+
+      function closeModal() {
+        document.getElementById("kamarModal").style.display = "none";
+        editingId = null;
+      }
+
+      async function editKamar(id) {
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/kamar/detail.php?id=" + id,
+            {
+              credentials: "include",
+            }
+          );
+          const result = await response.json();
+
+          if (result.success) {
+            const kamar = result.data;
+            editingId = id;
+
+            document.getElementById("kamarId").value = kamar.id;
+            document.getElementById("kosId").value = kamar.kos_id;
+            document.getElementById("nomor").value = kamar.nomor;
+            document.getElementById("ukuran").value = kamar.ukuran || "";
+            document.getElementById("harga").value = kamar.harga;
+            document.getElementById("status").value = kamar.status;
+            document.getElementById("fasilitas").value = kamar.fasilitas || "";
+
+            if (kamar.foto) {
+              document.getElementById(
+                "fotoPreview"
+              ).innerHTML = `<img src="${UPLOAD_BASE_URL}/kamar/${kamar.foto}" alt="Preview">`;
+            }
+
+            openModal(true);
+          }
+        } catch (error) {
+          showAlert("danger", "Gagal memuat data kamar");
+        }
+      }
+
+      async function handleSubmit(e) {
+        e.preventDefault();
+
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Menyimpan...";
+
+        const formData = new FormData();
+        formData.append("kos_id", document.getElementById("kosId").value);
+        formData.append("nomor", document.getElementById("nomor").value);
+        formData.append("ukuran", document.getElementById("ukuran").value);
+        formData.append("harga", document.getElementById("harga").value);
+        formData.append("status", document.getElementById("status").value);
+        formData.append(
+          "fasilitas",
+          document.getElementById("fasilitas").value
+        );
+
+        const fotoInput = document.getElementById("foto");
+        if (fotoInput.files[0]) {
+          formData.append("foto", fotoInput.files[0]);
+        }
+
+        try {
+          let response;
+          if (editingId) {
+            response = await API.kamar.update(editingId, formData);
+          } else {
+            response = await API.kamar.create(formData);
+          }
+
+          if (response.success) {
+            showAlert(
+              "success",
+              editingId
+                ? "Kamar berhasil diperbarui!"
+                : "Kamar berhasil ditambahkan!"
+            );
+            closeModal();
+            loadKamarList();
+          } else {
+            showAlert("danger", response.message);
+          }
+        } catch (error) {
+          showAlert("danger", "Terjadi kesalahan");
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Simpan";
+      }
+
+      function confirmDelete(id, nomor) {
+        deleteId = id;
+        document.getElementById("deleteKamarName").textContent =
+          "Kamar " + nomor;
+        document.getElementById("deleteModal").style.display = "flex";
+
+        document.getElementById("confirmDeleteBtn").onclick =
+          async function () {
+            try {
+              const response = await API.kamar.delete(deleteId);
+              if (response.success) {
+                showAlert("success", "Kamar berhasil dihapus");
+                loadKamarList();
+              } else {
+                showAlert("danger", response.message);
+              }
+            } catch (error) {
+              showAlert("danger", "Gagal menghapus kamar");
+            }
+            closeDeleteModal();
+          };
+      }
+
+      function closeDeleteModal() {
+        document.getElementById("deleteModal").style.display = "none";
+        deleteId = null;
+      }
+
+      function formatNumber(num) {
+        return new Intl.NumberFormat("id-ID").format(num);
+      }
+
+      function showAlert(type, message) {
+        const container = document.getElementById("alertContainer");
+        container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        setTimeout(() => (container.innerHTML = ""), 5000);
+      }
+
+      window.onclick = function (event) {
+        if (event.target.classList.contains("modal")) {
+          event.target.style.display = "none";
+        }
+      };
+    </script>
+    <script src="../js/admin-inbox.js"></script>
+  </body>
+</html>

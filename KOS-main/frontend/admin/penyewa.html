@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Penyewa - Admin Kos Atma</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body class="admin-body">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+        <div class="sidebar-header">
+            <a href="../index.html" class="logo">Kos Atma</a>
+            <span class="admin-badge">Admin</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="nav-item">
+                Dashboard
+            </a>
+            <a href="kos.html" class="nav-item">
+                Kelola Cabang
+            </a>
+            <a href="kamar.html" class="nav-item">
+                Kelola Kamar
+            </a>
+            <a href="penyewa.html" class="nav-item active">
+                Data Penyewa
+            </a>
+            <a href="users.html" class="nav-item">
+                Kelola Users
+            </a>
+            <a href="inbox.html" class="nav-item">
+                Inbox Pesan
+                <span id="inboxBadge" class="inbox-badge" style="display: none;">0</span>
+            </a>
+            <hr>
+            <a href="../index.html" class="nav-item">
+                Lihat Website
+            </a>
+            <a href="#" onclick="adminLogout()" class="nav-item">
+                Keluar
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <header class="admin-header">
+            <h1>Data Penyewa</h1>
+        </header>
+
+        <div class="admin-content">
+            <div id="alertContainer"></div>
+
+            <!-- Filter -->
+            <div class="card">
+                <div class="card-body">
+                    <form id="filterForm" class="search-form">
+                        <div class="search-row">
+                            <input type="text" id="searchKeyword" placeholder="Cari nama penyewa...">
+                            <select id="filterKos">
+                                <option value="">Semua Kos</option>
+                            </select>
+                            <select id="filterStatus">
+                                <option value="">Semua Status</option>
+                                <option value="aktif">Aktif</option>
+                                <option value="selesai">Selesai</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Penyewa Table -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nama Penyewa</th>
+                                    <th>Kos</th>
+                                    <th>Kamar</th>
+                                    <th>Tgl Masuk</th>
+                                    <th>Tgl Keluar</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="penyewaTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center">Memuat data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDetailModal()">&times;</span>
+            <h2>Detail Penyewa</h2>
+            <div id="penyewaDetail"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const user = await requireAdmin();
+            if (!user) return;
+
+            await loadKosList();
+            loadPenyewaList();
+
+            document.getElementById('filterForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                loadPenyewaList();
+            });
+        });
+
+        async function loadKosList() {
+            try {
+                const response = await API.kos.getList({});
+                if (response.success) {
+                    const options = response.data.map(kos => 
+                        `<option value="${kos.id}">${kos.nama}</option>`
+                    ).join('');
+                    document.getElementById('filterKos').innerHTML = '<option value="">Semua Kos</option>' + options;
+                }
+            } catch (error) {
+                console.error('Error loading kos list:', error);
+            }
+        }
+
+        async function loadPenyewaList() {
+            const tbody = document.getElementById('penyewaTableBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Memuat data...</td></tr>';
+
+            const keyword = document.getElementById('searchKeyword').value;
+            const kosId = document.getElementById('filterKos').value;
+            const status = document.getElementById('filterStatus').value;
+
+            try {
+                const params = new URLSearchParams({ keyword, kos_id: kosId, status }).toString();
+                const response = await fetch(API_BASE_URL + '/api/admin/penyewa.php?' + params, {
+                    credentials: 'include'
+                });
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    tbody.innerHTML = result.data.map(penyewa => `
+                        <tr>
+                            <td>${penyewa.id}</td>
+                            <td><strong>${penyewa.nama}</strong></td>
+                            <td>${penyewa.kos_nama}</td>
+                            <td>Kamar ${penyewa.kamar_nomor}</td>
+                            <td>${formatDate(penyewa.tanggal_masuk)}</td>
+                            <td>${penyewa.tanggal_keluar ? formatDate(penyewa.tanggal_keluar) : '-'}</td>
+                            <td><span class="badge badge-${penyewa.status}">${penyewa.status}</span></td>
+                            <td class="actions">
+                                <button class="btn btn-sm btn-info" onclick="viewDetail(${penyewa.id})">👁️ Detail</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Tidak ada data penyewa</td></tr>';
+                }
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Gagal memuat data</td></tr>';
+            }
+        }
+
+        async function viewDetail(id) {
+            try {
+                const response = await fetch(API_BASE_URL + '/api/admin/penyewa.php?id=' + id, {
+                    credentials: 'include'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    const p = result.data;
+                    document.getElementById('penyewaDetail').innerHTML = `
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Nama Penyewa</label>
+                                <p>${p.nama}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email</label>
+                                <p>${p.email || '-'}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Telepon</label>
+                                <p>${p.telepon || '-'}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Kos</label>
+                                <p>${p.kos_nama}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Kamar</label>
+                                <p>Kamar ${p.kamar_nomor}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Harga/Bulan</label>
+                                <p>Rp ${formatNumber(p.harga)}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Tanggal Masuk</label>
+                                <p>${formatDate(p.tanggal_masuk)}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Tanggal Keluar</label>
+                                <p>${p.tanggal_keluar ? formatDate(p.tanggal_keluar) : '-'}</p>
+                            </div>
+                            <div class="detail-item">
+                                <label>Status</label>
+                                <p><span class="badge badge-${p.status}">${p.status}</span></p>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('detailModal').style.display = 'flex';
+                }
+            } catch (error) {
+                showAlert('danger', 'Gagal memuat detail penyewa');
+            }
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+
+        function formatNumber(num) {
+            return new Intl.NumberFormat('id-ID').format(num);
+        }
+
+        function showAlert(type, message) {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => container.innerHTML = '', 5000);
+        }
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+
+    <style>
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        .detail-item label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+        .detail-item p {
+            margin: 0;
+            font-weight: 500;
+        }
+        .badge-aktif { background: var(--success-color); color: white; }
+        .badge-selesai { background: var(--secondary-color); color: white; }
+    </style>
+    <script src="../js/admin-inbox.js"></script>
+</body>
+</html>

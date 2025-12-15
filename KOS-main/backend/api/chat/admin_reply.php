@@ -1,0 +1,61 @@
+<?php
+/**
+ * API: Admin - Reply to Chat
+ * POST /backend/api/chat/admin_reply.php
+ */
+
+require_once __DIR__ . '/../../helpers/functions.php';
+
+setJsonHeader();
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    errorResponse('Method not allowed', 405);
+}
+
+requireAdmin();
+
+$input = getJsonInput();
+$user_id = (int)($input['user_id'] ?? 0);
+$message = trim($input['message'] ?? '');
+
+if (!$user_id) {
+    errorResponse('User ID required');
+}
+
+if (empty($message)) {
+    errorResponse('Pesan tidak boleh kosong');
+}
+
+if (strlen($message) > 500) {
+    errorResponse('Pesan terlalu panjang (maksimal 500 karakter)');
+}
+
+$conn = getConnection();
+
+// Check if user exists
+$stmt = $conn->prepare("SELECT id FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+if ($stmt->get_result()->num_rows === 0) {
+    errorResponse('User not found', 404);
+}
+
+// Insert admin reply
+$stmt = $conn->prepare("
+    INSERT INTO chat_messages (user_id, sender_type, message, is_read, created_at) 
+    VALUES (?, 'admin', ?, 0, NOW())
+");
+$stmt->bind_param("is", $user_id, $message);
+
+if ($stmt->execute()) {
+    $msg_id = $conn->insert_id;
+    $stmt->close();
+    closeConnection($conn);
+    
+    successResponse('Pesan terkirim', ['id' => $msg_id]);
+} else {
+    $stmt->close();
+    closeConnection($conn);
+    errorResponse('Gagal mengirim pesan', 500);
+}
+?>

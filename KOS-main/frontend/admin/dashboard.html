@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Kos Atma</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="admin-body">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-header">
+        <a href="../index.html" class="logo">Kos Atma</a>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item active"> Dashboard </a>
+        <a href="kos.html" class="nav-item"> Kelola Cabang </a>
+        <a href="kamar.html" class="nav-item"> Kelola Kamar </a>
+        <a href="penyewa.html" class="nav-item"> Data Penyewa </a>
+        <a href="users.html" class="nav-item"> Kelola Users </a>
+        <a href="inbox.html" class="nav-item">
+          Inbox Pesan
+          <span id="inboxBadge" class="inbox-badge" style="display: none"
+            >0</span
+          >
+        </a>
+        <hr />
+        <a href="../index.html" class="nav-item"> Lihat Website </a>
+        <a href="#" onclick="adminLogout()" class="nav-item"> Keluar </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1>Dashboard</h1>
+        <div class="admin-user">
+          <span id="adminName">Admin</span>
+        </div>
+      </header>
+
+      <div class="admin-content">
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon bg-primary">👥</div>
+            <div class="stat-info">
+              <span class="stat-value" id="totalUsers">0</span>
+              <span class="stat-label">Total Users</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-success">🏠</div>
+            <div class="stat-info">
+              <span class="stat-value" id="totalKos">0</span>
+              <span class="stat-label">Total Cabang</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-warning">🚪</div>
+            <div class="stat-info">
+              <span class="stat-value" id="totalKamar">0</span>
+              <span class="stat-label">Total Kamar</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-info">🧑‍💼</div>
+            <div class="stat-info">
+              <span class="stat-value" id="totalPenyewa">0</span>
+              <span class="stat-label">Total Penyewa</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activities -->
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Kos Terbaru</h3>
+              <a href="kos.html" class="btn btn-sm btn-outline">Lihat Semua</a>
+            </div>
+            <div class="card-body">
+              <div id="recentKos" class="list-group">
+                <p class="text-muted">Memuat data...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>User Terbaru</h3>
+              <a href="users.html" class="btn btn-sm btn-outline"
+                >Lihat Semua</a
+              >
+            </div>
+            <div class="card-body">
+              <div id="recentUsers" class="list-group">
+                <p class="text-muted">Memuat data...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Aksi Cepat</h3>
+          </div>
+          <div class="card-body">
+            <div class="quick-actions">
+              <a href="kos.html?action=add" class="btn btn-primary">
+                ➕ Tambah Cabang Baru
+              </a>
+              <a href="kamar.html?action=add" class="btn btn-success">
+                ➕ Tambah Kamar Baru
+              </a>
+              <a href="users.html?action=add" class="btn btn-info">
+                ➕ Tambah User Baru
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", async function () {
+        // Cek admin
+        const user = await requireAdmin();
+        if (!user) return;
+
+        document.getElementById("adminName").textContent = user.nama;
+
+        // Load dashboard data
+        loadDashboardStats();
+        loadRecentKos();
+        loadRecentUsers();
+      });
+
+      async function loadDashboardStats() {
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/admin/dashboard.php",
+            {
+              credentials: "include",
+            }
+          );
+          const result = await response.json();
+
+          if (result.success) {
+            document.getElementById("totalUsers").textContent =
+              result.data.total_users || 0;
+            document.getElementById("totalKos").textContent =
+              result.data.total_kos || 0;
+            document.getElementById("totalKamar").textContent =
+              result.data.total_kamar || 0;
+            document.getElementById("totalPenyewa").textContent =
+              result.data.total_penyewa || 0;
+          }
+        } catch (error) {
+          console.error("Error loading stats:", error);
+        }
+      }
+
+      async function loadRecentKos() {
+        try {
+          const response = await API.kos.getList({ limit: 5 });
+          const container = document.getElementById("recentKos");
+
+          if (response.success && response.data.length > 0) {
+            container.innerHTML = response.data
+              .map(
+                (kos) => `
+                        <div class="list-item">
+                            <div class="list-item-info">
+                                <strong>${kos.nama}</strong>
+                                <small>${kos.alamat}</small>
+                            </div>
+                            <span class="badge badge-${kos.tipe}">${kos.tipe}</span>
+                        </div>
+                    `
+              )
+              .join("");
+          } else {
+            container.innerHTML =
+              '<p class="text-muted">Belum ada data kos</p>';
+          }
+        } catch (error) {
+          document.getElementById("recentKos").innerHTML =
+            '<p class="text-muted">Gagal memuat data</p>';
+        }
+      }
+
+      async function loadRecentUsers() {
+        try {
+          const response = await fetch(
+            API_BASE_URL + "/api/admin/users.php?limit=5",
+            {
+              credentials: "include",
+            }
+          );
+          const result = await response.json();
+          const container = document.getElementById("recentUsers");
+
+          if (result.success && result.data.length > 0) {
+            container.innerHTML = result.data
+              .map(
+                (user) => `
+                        <div class="list-item">
+                            <div class="list-item-info">
+                                <strong>${user.nama}</strong>
+                                <small>${user.email}</small>
+                            </div>
+                            <span class="badge badge-${user.role}">${user.role}</span>
+                        </div>
+                    `
+              )
+              .join("");
+          } else {
+            container.innerHTML =
+              '<p class="text-muted">Belum ada data user</p>';
+          }
+        } catch (error) {
+          document.getElementById("recentUsers").innerHTML =
+            '<p class="text-muted">Gagal memuat data</p>';
+        }
+      }
+    </script>
+    <script src="../js/admin-inbox.js"></script>
+  </body>
+</html>
